@@ -1,134 +1,101 @@
 ﻿using BugFinderAgent.Interfaces;
 using BugFinderAgent.Models;
+using Microsoft.Extensions.Logging;
 
 namespace BugFinderAgent.Services;
 
-public class AgentOrchestrator(ICodeReviewAgent reviewer, IPlannerAgent planner, CodeDebuggerAgentExtended debugger, ICodeVerifierAgent verifier) : IAgentOrchestrator
+public class AgentOrchestrator(ICodeReviewAgent reviewer, IPlannerAgent planner, ICodeDebuggerAgent debugger, ICodeVerifierAgent verifier, ILogger<AgentOrchestrator> logger) : IAgentOrchestrator
 {
     public async Task<PipelineResult> RunAsync(AgentInput input, int maxSteps = 5)
     {
-        var result = new PipelineResult
+        var result = new PipelineResult(default, null, input.Request, default)
         {
-            OriginalCode = input.Code,
-            OriginalRequest = input.Request
+            OriginalCode = input.Code
         };
 
         var currentCode = input.Code;
 
-        Console.WriteLine(" Starting Autonomous Code Agent Pipeline");
-        Console.WriteLine($" Request: {input.Request ?? "(none — fix all issues found)"}");
-        Console.WriteLine(new string('─', 60));
+        logger.LogInformation(
+            "Starting pipeline. Request: {Request}",
+            input.Request ?? "(none — fix all issues found)");
 
         for (int i = 1; i <= maxSteps; i++)
         {
-            Console.WriteLine($"\n Agent Step {i}/{maxSteps}");
+            logger.LogInformation("Agent step {Step}/{MaxSteps}", i, maxSteps);
             var report = new StepReport { Step = i };
 
-            // ── Step 1: Review ──────────────────────────────────────
-            Console.WriteLine("   Step 1: Reviewing code...");
+            // Step 1: Review
             var review = await reviewer.Review(currentCode);
             report.Review = review;
-            PrintReview(review);
+            logger.LogInformation(
+                "Review complete. Severity: {Severity}/10. Issues: {Issues}",
+                review.SeverityScore,
+                string.Join(", ", review.Issues));
 
-            // If severity is very low and no issues, we might already be done
             if (review.SeverityScore <= 2 && review.Issues.Count == 0)
             {
-                Console.WriteLine("   Code looks clean. Skipping further steps.");
-                result.Success = true;
-                result.FinalCode = currentCode;
-                result.FinalVerdict = "Code was already in good shape. No significant issues found.";
+                logger.LogInformation("Code is clean. Exiting early at step {Step}.", i);
                 result.Reports.Add(report);
-                break;
+                return result with
+                {
+                    Success = true,
+                    FinalCode = currentCode,
+                    FinalVerdict = "Code was already in good shape. No significant issues found.",
+                    TotalIterations = i   // was always 0 before
+                };
             }
 
-            // ── Step 2: Plan ────────────────────────────────────────
-            Console.WriteLine("    Step 2: Creating plan...");
+            // Step 2: Plan
             var plan = await planner.CreatePlan(currentCode, review, input.Request);
             report.Plan = plan;
-            PrintPlan(plan);
+            logger.LogInformation("Plan created. Goal: {Goal}. Steps: {Count}", plan.Goal, plan.Steps.Count);
 
-            // ── Step 3: Debug / Apply Changes ───────────────────────
-            Console.WriteLine("   Step 3: Applying changes...");
+            // Step 3: Debug / Apply
             var debugSteps = await debugger.DebugWithPlan(currentCode, plan);
             report.DebugSteps = debugSteps;
-            PrintDebugSteps(debugSteps);
 
-            // Extract the latest fixed code from debug steps
+            foreach (var step in debugSteps)
+                logger.LogInformation(
+                    "Debug step [{Success}] {Action}: {Explanation}",
+                    step.Success ? "OK" : "FAIL", step.Action, step.Explanation);
+
             var fixedCode = debugSteps
                 .Where(d => d.Success && !string.IsNullOrWhiteSpace(d.FixedCode))
                 .LastOrDefault()?.FixedCode ?? currentCode;
 
-            // ── Step 4: Verify ──────────────────────────────────────
-            Console.WriteLine("    Step 4: Verifying result...");
+            // Step 4: Verify
             var verification = await verifier.Verify(input.Code, fixedCode, plan, input.Request);
             report.Verification = verification;
-            PrintVerification(verification);
+            logger.LogInformation(
+                "Verification: {Verdict}. Complete: {IsComplete}",
+                verification.Verdict, verification.IsComplete);
 
             result.Reports.Add(report);
 
             if (verification.IsComplete)
             {
-                Console.WriteLine($"\n Job complete after {i} step(s)!");
-                result.Success = true;
-                result.FinalCode = verification.FinalCode ?? fixedCode;
-                result.FinalVerdict = verification.Verdict;
-                result.TotalIterations = i;
-                break;
+                logger.LogInformation("Pipeline complete after {Step} step(s).", i);
+                return result with
+                {
+                    Success = true,
+                    FinalCode = verification.FinalCode ?? fixedCode,
+                    FinalVerdict = verification.Verdict,
+                    TotalIterations = i
+                };
             }
 
             currentCode = fixedCode;
-            Console.WriteLine($"\n⚠  Remaining issues: {string.Join(", ", verification.RemainingIssues)}");
-            Console.WriteLine("    Looping back for another step...");
+            logger.LogWarning(
+                "Remaining issues after step {Step}: {Issues}",
+                i, string.Join(", ", verification.RemainingIssues));
         }
 
-        if (!result.Success)
+        logger.LogWarning("Max steps ({MaxSteps}) reached without full completion.", maxSteps);
+        return result with
         {
-            Console.WriteLine($"\n  Max steps ({maxSteps}) reached without full completion.");
-            result.FinalCode = currentCode;
-            result.FinalVerdict = "Max steps reached. Partial improvements may have been applied.";
-            result.TotalIterations = maxSteps;
-        }
-
-        return result;
+            FinalCode = currentCode,
+            FinalVerdict = "Max steps reached. Partial improvements may have been applied.",
+            TotalIterations = maxSteps
+        };
     }
-
-
-    private static void PrintReview(AiReviewResponse review)
-    {
-        Console.WriteLine($"     Summary: {review.Summary}");
-        Console.WriteLine($"     Severity: {review.SeverityScore}/10");
-        if (review.Issues.Count != 0)
-            Console.WriteLine($"     Issues: {string.Join(", ", review.Issues.Take(3))}{(review.Issues.Count > 3 ? "..." : "")}");
-    }
-
-    private static void PrintPlan(AiPlanResponse plan)
-    {
-        Console.WriteLine($"     Goal: {plan.Goal}");
-        Console.WriteLine($"     Steps: {plan.Steps.Count} planned");
-        foreach (var step in plan.Steps)
-            Console.WriteLine($"       {step.Order}. {step.Description}");
-    }
-
-    private static void PrintDebugSteps(List<AiDebugResponse> steps)
-    {
-        foreach (var step in steps)
-        {
-            var icon = step.Success ? "✅" : "❌";
-            Console.WriteLine($"     {icon} {step.Action}: {step.Explanation}");
-        }
-    }
-
-    private static void PrintVerification(AiVerifyResponse verification)
-    {
-        var icon = verification.IsComplete ? "✅" : "⚠️";
-        Console.WriteLine($"     {icon} {verification.Verdict}");
-        if (verification.RemainingIssues.Count != 0)
-            Console.WriteLine($"     Remaining: {string.Join(", ", verification.RemainingIssues)}");
-    }
-}
-
-public class CodeDebuggerAgentExtended(ICodeDebuggerAgent inner)
-{
-    public Task<List<AiDebugResponse>> DebugWithPlan(string code, AiPlanResponse plan) =>
-        inner.DebugWithPlan(code, plan);
 }

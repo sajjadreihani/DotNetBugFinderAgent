@@ -1,67 +1,162 @@
 # BugFinderAgent
 
-BugFinderAgent is a sample Blazor WebAssembly/Server (Blazor) project demonstrating an AI-driven code analysis pipeline. The app orchestrates multiple agent-like services (planner, reviewer, debugger, verifier, Ollama client) to analyze and verify code changes and produce structured pipeline results.
+> **AI-powered code analysis pipeline built with .NET 10, Blazor, Microsoft Agent Stack, and Ollama local LLMs.**
 
-This repository is ideal as a portfolio piece for developers who want to show experience with modern .NET web development, simple agent orchestration, and integration with AI components.
+BugFinderAgent is a portfolio-grade Blazor application that demonstrates a multi-agent AI pipeline for automated code review, debugging, and verification — all running locally with no cloud dependency required.
 
-## Key features
+---
 
-- Blazor-based UI components for a lightweight frontend
-- Structured service layer with agents: PlannerAgent, CodeReviewAgent, CodeDebuggerAgent, CodeVerifierAgent, OllamaAgent
-- Central orchestration via Services/AgentOrchestrator.cs
-- Models for typed AI responses and pipeline results
-- Config-driven (appsettings.json) for environment-specific behavior
+## What It Does
 
-## Tech stack
+The app orchestrates a structured pipeline of specialized AI agents — each powered by a local LLM via Ollama — to analyze code changes end-to-end:
 
-- .NET 10
-- Blazor (component-based UI)
-- C# 12
-- Simple local service architecture (no external database required)
+1. **PlannerAgent** — breaks down the analysis task into actionable steps
+2. **CodeReviewAgent** — reviews code for quality, style, and potential issues
+3. **CodeDebuggerAgent** — identifies bugs, edge cases, and runtime risks
+4. **CodeVerifierAgent** — validates fixes and confirms correctness
+5. **AgentOrchestrator** — coordinates the full pipeline and aggregates results into a typed `PipelineResult`
 
-## Project structure (important files)
+All agent communication is handled through **Microsoft Agent Stack** (Microsoft.Extensions.AI abstractions), with **Ollama** providing local LLM inference — no OpenAI API key or internet connection needed for core functionality.
 
-- Program.cs – app startup and DI registration
-- Services/AgentOrchestrator.cs – orchestrates the analysis pipeline
-- Services/*.cs – implementations for planner, reviewer, debugger, verifier, and Ollama client
-- Models/*.cs – typed request / response models used across services
-- Components/Pages/*.razor – UI pages
-- wwwroot/app.css – styling
+---
 
-## Getting started
+## Key Features
 
-Prerequisites
-- .NET 10 SDK installed
-- Visual Studio 2022/2026 or `dotnet` CLI
+- **Local-first AI** — runs entirely on your machine via Ollama; no API keys, no data leaving your network
+- **Microsoft Agent Stack integration** — uses Microsoft's official agent abstractions (`Microsoft.Extensions.AI`) for structured, interoperable agent communication
+- **Blazor UI** — component-driven frontend with clean separation from the service layer
+- **Typed pipeline results** — strongly-typed `PipelineResult` and response models throughout; no stringly-typed magic
+- **Clean Architecture** — dependency injection, clear service boundaries, and an orchestrator pattern you can extend or swap out
+- **Config-driven** — `appsettings.json` / `appsettings.Development.json` for environment-specific Ollama endpoints and model selection
 
-Run locally
-1. Open the solution in Visual Studio and press F5, or from the repo root run:
-   dotnet run --project BugFinderAgent.csproj
-2. Open the browser to the URL printed in the console (default Kestrel port).
+---
 
-Configuration
-- appsettings.json and appsettings.Development.json contain environment configuration values. Review and update any AI endpoint or API configuration before running.
+## Tech Stack
 
-## Usage notes
-- The app is designed as a demo/sample. The AI-related services are implemented as local classes under Services and AITools; if any API integration (Ollama or others) is used, confirm credentials and endpoints are configured.
-- The orchestrator executes a pipeline that returns a PipelineResult model. Use that model to render or log results.
+| Layer | Technology |
+|---|---|
+| Framework | .NET 10, C# 13 |
+| Frontend | Blazor (WebAssembly/Server) |
+| Agent abstractions | Microsoft Agent Stack (`Microsoft.Extensions.AI`) |
+| Local LLM runtime | Ollama |
+| Architecture | Clean Architecture, Dependency Injection |
+| Config | `appsettings.json` |
 
-## Suggestions to make this repo stronger for a resume/GitHub
-- Add a concise architecture diagram or sequence diagram (README or docs/)
-- Add unit tests for core services (PlannerAgent, CodeReviewAgent, CodeVerifierAgent, AgentOrchestrator) to show TDD/QA skills
-- Add a demo GIF or short video in the README showing the UI and pipeline run
-- Add CI workflow (GitHub Actions) to build and run tests on push
-- Document any third-party API keys or how to mock them for local runs
-- Add license and contributing guidelines
+---
 
-## Suggested resume bullets
-- Built a Blazor web application (NET 10) that orchestrates modular AI "agents" (planner, reviewer, debugger, verifier) to analyze and verify code changes
-- Implemented a typed service layer and pipeline orchestration with dependency injection and clear separation of concerns
-- Integrated a local Ollama client and simulated AI responses with strongly-typed models for reliability in development
-- Improved developer experience by providing configuration-based environment support and component-driven UI
+## Project Structure
+
+```
+BugFinderAgent/
+├── Program.cs                        # App startup and DI registration
+├── Services/
+│   ├── AgentOrchestrator.cs          # Pipeline coordinator
+│   ├── PlannerAgent.cs
+│   ├── CodeReviewAgent.cs
+│   ├── CodeDebuggerAgent.cs
+│   ├── CodeVerifierAgent.cs
+│   └── OllamaAgent.cs                # Ollama client wrapper
+├── Models/                           # Typed request/response/pipeline models
+├── Components/Pages/                 # Blazor UI pages
+├── AITools/                          # Tool definitions for agent use
+└── wwwroot/app.css                   # Global styles
+```
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [.NET 10 SDK](https://dotnet.microsoft.com/download)
+- [Ollama](https://ollama.com/) installed and running locally
+- A compatible model pulled in Ollama, e.g.:
+  ```bash
+  ollama pull llama3
+  # or any model your hardware supports
+  ```
+
+### Run Locally
+
+```bash
+# Clone the repo
+git clone https://github.com/your-username/BugFinderAgent.git
+cd BugFinderAgent
+
+# Run the app
+dotnet run --project BugFinderAgent.csproj
+```
+
+Then open the URL printed in the console (default Kestrel port).
+
+Or open the solution in Visual Studio 2022/2026 and press **F5**.
+
+### Configuration
+
+Edit `appsettings.json` (or `appsettings.Development.json`) to point at your Ollama instance and select your preferred model:
+
+```json
+{
+  "Ollama": {
+    "BaseUrl": "http://localhost:11434",
+    "Model": "llama3"
+  }
+}
+```
+
+No external API keys are required for default operation.
+
+---
+
+## How the Pipeline Works
+
+```
+User Input (code snippet / diff)
+        │
+        ▼
+  CodeReviewAgent       → Flags quality and style issues
+        │
+        ▼
+  PlannerAgent          → Decomposes the task
+        │
+        ▼
+  CodeDebuggerAgent     → Identifies bugs and edge cases
+        │
+        ▼
+  CodeVerifierAgent     → Confirms fixes and validates output
+        │
+        ▼
+  AgentOrchestrator     → Assembles PipelineResult
+        │
+        ▼
+  Blazor UI             → Renders structured results
+```
+
+Each agent communicates via Microsoft Agent Stack abstractions, making it straightforward to swap Ollama for any `IChatClient`-compatible provider (OpenAI, Azure OpenAI, etc.) with a one-line config change.
+
+---
+
+## Making This Production-Ready (Suggestions)
+
+- **Add unit tests** for `PlannerAgent`, `CodeReviewAgent`, `CodeVerifierAgent`, and `AgentOrchestrator` to demonstrate TDD discipline
+- **Add a GitHub Actions CI workflow** to build and run tests on push
+- **Add a demo GIF or short video** to the README showing the UI and a real pipeline run
+- **Publish a live demo** to GitHub Pages, Azure Static Web Apps, or Azure Container Apps
+- **Add an architecture/sequence diagram** to `docs/` for recruiters and collaborators
+- **Add a LICENSE file** (MIT recommended for public portfolio projects)
+- **Add contributing guidelines** if you want OSS contributions
+
+---
+
+## Resume Bullets
+
+- Built a Blazor web application (.NET 10) orchestrating a multi-agent AI pipeline (planner → reviewer → debugger → verifier) for automated code analysis using **Microsoft Agent Stack** (`Microsoft.Extensions.AI`)
+- Integrated **Ollama** for fully local LLM inference, eliminating cloud dependency and demonstrating on-device AI architecture
+- Implemented a typed service layer with clean separation of concerns, dependency injection, and a central `AgentOrchestrator` producing structured `PipelineResult` models
+- Designed a config-driven, provider-agnostic agent layer — swappable from local Ollama to OpenAI/Azure OpenAI without code changes
+
+---
 
 ## License
-Add a LICENSE file to specify terms (MIT recommended for public samples).
 
-## Contact / Next steps
-- Add unit tests and CI, include a demo video, and optionally publish to GitHub Pages or Azure for a live demo to make this repo presentation-ready for recruiters.
+Add a `LICENSE` file to specify terms. MIT is recommended for public portfolio samples.

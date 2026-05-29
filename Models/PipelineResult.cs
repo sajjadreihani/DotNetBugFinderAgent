@@ -1,13 +1,9 @@
 ﻿namespace BugFinderAgent.Models;
 
-public class PipelineResult
+public record PipelineResult(bool Success, string? FinalCode, string? OriginalRequest, int TotalIterations)
 {
-    public bool Success { get; set; }
     public string OriginalCode { get; set; } = string.Empty;
-    public string? FinalCode { get; set; }
-    public string? OriginalRequest { get; set; }
     public List<StepReport> Reports { get; set; } = [];
-    public int TotalIterations { get; set; }
     public string FinalVerdict { get; set; } = string.Empty;
 }
 

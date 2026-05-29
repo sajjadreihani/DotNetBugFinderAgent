@@ -253,7 +253,7 @@
             {
                 Code = prompt,
                 Request = string.IsNullOrWhiteSpace(requestText) ? null : requestText
-            });
+            }, logger);
 
             pipelineResult = response;
         }
