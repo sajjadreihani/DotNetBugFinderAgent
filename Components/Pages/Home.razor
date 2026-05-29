@@ -1,0 +1,285 @@
+﻿@page "/"
+@rendermode InteractiveServer
+@using BugFinderAgent.Interfaces
+@using BugFinderAgent.Models
+@using MudBlazor
+@inject IAgentOrchestrator Agent
+
+<PageTitle>C# Bug Finder</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Large" Class="py-8">
+    <MudStack Spacing="6">
+
+        <!-- Header -->
+        <MudStack AlignItems="AlignItems.Center">
+            <MudText Typo="Typo.h3" Align="Align.Center" GutterBottom="true">
+                🔍 C# Code Bug Finder & Analyzer
+            </MudText>
+            <MudText Typo="Typo.body2" Color="Color.Default" Align="Align.Center">
+                Paste your C# code and let AI agents analyze, plan fixes, debug, and verify improvements
+            </MudText>
+        </MudStack>
+
+        <!-- Input & Button -->
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="string" 
+                    @bind-Value="@prompt" 
+                    Label="Paste your C# code..." 
+                    Variant="Variant.Outlined" 
+                    Lines="12"
+                    FullWidth="true"
+                    Disabled="@Loading"
+                    Placeholder="e.g., a method with a bug" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField T="string" 
+                    @bind-Value="@requestText" 
+                    Label="Optional: describe what to fix" 
+                    Variant="Variant.Outlined" 
+                    Lines="3"
+                    FullWidth="true"
+                    Disabled="@Loading"
+                    Placeholder="e.g., 'fix divide by zero'" />
+            </MudItem>
+        </MudGrid>
+
+        <MudStack Row="true" Justify="Justify.Center">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large" OnClick="Search" Disabled="@Loading">
+                @if (Loading)
+                {
+                    <MudProgressCircular Class="ms-n1" Size="Size.Small" Indeterminate="true" />
+                    <MudText Class="ms-2">Analyzing...</MudText>
+                }
+                else
+                {
+                    <MudText>🚀 Review Code</MudText>
+                }
+            </MudButton>
+        </MudStack>
+
+        <!-- Loading Progress -->
+        @if (Loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        }
+
+        <!-- Results -->
+        @if (pipelineResult != null)
+        {
+            <MudDivider Class="my-6" />
+
+            <!-- Success Banner -->
+            <MudAlert Severity="@(pipelineResult.Success ? Severity.Success : Severity.Warning)" 
+                IsVisible="true" 
+                Dense="false"
+                Class="mb-4">
+                @if (pipelineResult.Success)
+                {
+                    <MudText>✅ Analysis Complete - Issues Found and Analyzed</MudText>
+                }
+                else
+                {
+                    <MudText>⚠️ Analysis Complete - Please Review Results</MudText>
+                }
+            </MudAlert>
+
+            <!-- Final Verdict -->
+            <MudPaper Elevation="1" Class="pa-4 mb-4" Style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <MudStack>
+                    <MudText Typo="Typo.h5">📋 Final Verdict</MudText>
+                    <MudText Typo="Typo.body1">@pipelineResult.FinalVerdict</MudText>
+                    <MudText Typo="Typo.caption" Class="mt-2">Completed in @pipelineResult.Reports.Count step(s)</MudText>
+                </MudStack>
+            </MudPaper>
+
+            <!-- Step Reports -->
+            @if (pipelineResult.Reports.Any())
+            {
+                <MudText Typo="Typo.h5" Class="mb-4">📊 Detailed Analysis</MudText>
+
+                @foreach (var report in pipelineResult.Reports)
+                {
+                    <MudExpansionPanel Class="mb-3" Style="background: rgba(0,0,0,0.02);">
+                        <TitleContent>
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary">Step @report.Step</MudChip>
+                                @if (report.Review?.Issues.Count > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning">@report.Review.Issues.Count issue(s)</MudChip>
+                                }
+                                @if (report.Review?.SeverityScore > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="@GetSeverityColor(report.Review.SeverityScore)">
+                                        Severity: @report.Review.SeverityScore
+                                    </MudChip>
+                                }
+                            </MudStack>
+                        </TitleContent>
+                        <ChildContent>
+                            <!-- Code Review -->
+                            @if (report.Review != null)
+                            {
+                                <MudPaper Elevation="0" Class="pa-4 mb-4" Style="background: rgba(0,0,0,0.02); border-left: 4px solid #ff9800;">
+                                    <MudText Typo="Typo.h6" Class="mb-2">🔎 Code Review</MudText>
+                                    <MudText Typo="Typo.body2" Class="mb-3"><strong>Summary:</strong> @report.Review.Summary</MudText>
+
+                                    @if (report.Review.Issues.Any())
+                                    {
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">Issues Found:</MudText>
+                                        <MudList T="string">
+                                            @foreach (var issue in report.Review.Issues)
+                                            {
+                                                <MudListItem T="string">
+                                                    <MudText Typo="Typo.body2">❌ @issue</MudText>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    }
+
+                                    @if (report.Review.Suggestions.Any())
+                                    {
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2 mt-3">Suggestions:</MudText>
+                                        <MudList T="string">
+                                            @foreach (var suggestion in report.Review.Suggestions)
+                                            {
+                                                <MudListItem T="string">
+                                                    <MudText Typo="Typo.body2">💡 @suggestion</MudText>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    }
+                                </MudPaper>
+                            }
+
+                            <!-- Plan -->
+                            @if (report.Plan != null)
+                            {
+                                <MudPaper Elevation="0" Class="pa-4 mb-4" Style="background: rgba(0,0,0,0.02); border-left: 4px solid #2196f3;">
+                                    <MudText Typo="Typo.h6" Class="mb-2">📝 Execution Plan</MudText>
+                                    <MudText Typo="Typo.body2" Class="mb-3"><strong>Goal:</strong> @report.Plan.Goal</MudText>
+
+                                    @if (report.Plan.Steps.Any())
+                                    {
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2">Steps:</MudText>
+                                        <MudList T="PlanStep">
+                                            @foreach (var step in report.Plan.Steps)
+                                            {
+                                                <MudListItem T="PlanStep">
+                                                    <MudStack Spacing="1">
+                                                        <MudText Typo="Typo.body2"><strong>@step.Order.</strong> @step.Description</MudText>
+                                                        <MudText Typo="Typo.caption" Color="Color.Default">→ @step.ExpectedOutcome</MudText>
+                                                    </MudStack>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    }
+                                </MudPaper>
+                            }
+
+                            <!-- Verification -->
+                            @if (report.Verification != null)
+                            {
+                                <MudPaper Elevation="0" Class="pa-4" Style="background: rgba(0,0,0,0.02); border-left: 4px solid #4caf50;">
+                                    <MudText Typo="Typo.h6" Class="mb-2">✔️ Verification Results</MudText>
+                                    <MudText Typo="Typo.body2"><strong>Verdict:</strong> @report.Verification.Verdict</MudText>
+                                    <MudText Typo="Typo.body2" Class="mt-2"><strong>Complete:</strong> @(report.Verification.IsComplete ? "Yes" : "No")</MudText>
+                                    @if (report.Verification.RemainingIssues.Any())
+                                    {
+                                        <MudText Typo="Typo.subtitle2" Class="mb-2 mt-3">Remaining Issues:</MudText>
+                                        <MudList T="string">
+                                            @foreach (var issue in report.Verification.RemainingIssues)
+                                            {
+                                                <MudListItem T="string">
+                                                    <MudText Typo="Typo.body2">⚠️ @issue</MudText>
+                                                </MudListItem>
+                                            }
+                                        </MudList>
+                                    }
+                                </MudPaper>
+                            }
+                        </ChildContent>
+                    </MudExpansionPanel>
+                }
+            }
+
+            <!-- Final Code -->
+            <MudDivider Class="my-6" />
+            <MudText Typo="Typo.h5" Class="mb-3">✨ Fixed Code</MudText>
+            <MudPaper Elevation="1" Class="pa-4" Style="background: #f5f5f5; font-family: monospace; overflow-x: auto;">
+                <MudText Typo="Typo.body2" Style="white-space: pre-wrap; word-break: break-word;">@(pipelineResult.FinalCode ?? "No changes made")</MudText>
+            </MudPaper>
+        }
+
+    </MudStack>
+</MudContainer>
+
+@code {
+
+    string prompt = @"
+        public class Calculator
+        {
+            public int Divide(int a, int b)
+            {
+                return a / b; // potential divide by zero
+            }
+
+            public List<int> GetEvenNumbers(List<int> numbers)
+            {
+                var result = new List<int>();
+                for (int i = 0; i <= numbers.Count; i++) // off-by-one error
+                {
+                    if (numbers[i] % 2 == 0)
+                        result.Add(numbers[i]);
+                }
+                return result;
+            }
+        }
+";
+
+    string requestText = string.Empty;
+    PipelineResult? pipelineResult = null;
+    bool Loading = false;
+
+    async Task Search()
+    {
+        Loading = true;
+        pipelineResult = null;
+        StateHasChanged();
+
+        try
+        {
+            var response = await Agent.RunAsync(new AgentInput
+            {
+                Code = prompt,
+                Request = string.IsNullOrWhiteSpace(requestText) ? null : requestText
+            });
+
+            pipelineResult = response;
+        }
+        catch (Exception ex)
+        {
+            pipelineResult = new PipelineResult
+            {
+                Success = false,
+                FinalVerdict = $"Error during analysis: {ex.Message}",
+                FinalCode = prompt
+            };
+        }
+        finally
+        {
+            Loading = false;
+            StateHasChanged();
+        }
+    }
+
+    private Color GetSeverityColor(int severity)
+    {
+        return severity switch
+        {
+            >= 8 => Color.Error,
+            >= 5 => Color.Warning,
+            _ => Color.Info
+        };
+    }
+}
