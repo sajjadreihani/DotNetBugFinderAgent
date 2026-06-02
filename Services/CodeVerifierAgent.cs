@@ -1,5 +1,10 @@
-﻿using BugFinderAgent.Interfaces;
+﻿using BugFinderAgent.AIMiddlewares;
+using BugFinderAgent.AITools;
+using BugFinderAgent.Interfaces;
 using BugFinderAgent.Models;
+using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
+using OllamaSharp;
 
 namespace BugFinderAgent.Services;
 
@@ -40,6 +45,15 @@ public class CodeVerifierAgent(IOllamaAgent agent) : ICodeVerifierAgent
             Return the final code in FinalCode if complete, or null if further iteration is needed.
             """;
 
-        return await agent.GetResponseAsync<AiVerifyResponse>(model, instruction, prompt);
+            var client = new OllamaApiClient("http://localhost:11434", model).AsAIAgent(instruction, tools: [
+                AIFunctionFactory.Create(CodeDebuggingTools.ExecuteCSharpCode),
+                AIFunctionFactory.Create(CodeDebuggingTools.ValidateCSharpCode)
+            ]).AsBuilder()
+            .Use(FunctionCallMiddleware.Call)
+            .Build();
+
+        var respones = await client.RunAsync<AiVerifyResponse>(prompt);
+
+        return respones.Result;
     }
 }

@@ -1,6 +1,8 @@
-﻿using BugFinderAgent.AITools;
+﻿using BugFinderAgent.AIMiddlewares;
+using BugFinderAgent.AITools;
 using BugFinderAgent.Interfaces;
 using BugFinderAgent.Models;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.AI;
 using OllamaSharp;
 
@@ -18,6 +20,7 @@ You MUST return valid JSON matching this schema exactly:
     ""Explanation"": ""what happened"",
     ""CodeExecuted"": ""code executed"",
     ""Result"": ""execution result"",
+    ""Success"": ""code corrected successfully?""
     ""FixedCode"": ""FULL corrected code""
   }
 ]
@@ -25,9 +28,10 @@ You MUST return valid JSON matching this schema exactly:
 Rules:
 - All Fields are REQUIRED
 - Always include the FULL corrected code
-- Never omit FixedCode
+- Never omit FixedCode and Success
 - Never return markdown
 - ALWAYS use tools to debug the fixed code
+- NEVER OMIT Success
 - Never return explanations outside JSON";
 
     public async Task<List<AiDebugResponse>> Debug(string code, string model = "qwen2.5-coder:7b")
@@ -35,7 +39,9 @@ Rules:
         var client = new OllamaApiClient("http://localhost:11434", model).AsAIAgent(instruction, tools: [
                 AIFunctionFactory.Create(CodeDebuggingTools.ExecuteCSharpCode),
                 AIFunctionFactory.Create(CodeDebuggingTools.ValidateCSharpCode)
-            ]);
+            ]).AsBuilder()
+            .Use(FunctionCallMiddleware.Call)
+            .Build();
 
         var response = await client.RunAsync<List<AiDebugResponse>>(code);
 
@@ -65,9 +71,10 @@ Rules:
 
             Execute this plan on the code above. Use the available tools to validate and test your changes.
             Return every action you took as structured debug steps.
+
+            - You must follow the plan step by step and fixed the code as expected
             """;
 
         return await Debug(prompt, model);
     }
-
 }

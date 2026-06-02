@@ -14,7 +14,6 @@ builder.Services.AddScoped<ICodeReviewAgent, CodeReviewAgent>();
 builder.Services.AddScoped<ICodeDebuggerAgent, CodeDebuggerAgent>();
 builder.Services.AddScoped<IPlannerAgent, PlannerAgent>();
 builder.Services.AddScoped<CodeDebuggerAgent>();
-builder.Services.AddScoped<CodeDebuggerAgentExtended>();
 builder.Services.AddScoped<ICodeVerifierAgent, CodeVerifierAgent>();
 builder.Services.AddScoped<IAgentOrchestrator, AgentOrchestrator>();
 builder.Services.AddMudServices();

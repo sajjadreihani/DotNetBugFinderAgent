@@ -253,18 +253,13 @@
             {
                 Code = prompt,
                 Request = string.IsNullOrWhiteSpace(requestText) ? null : requestText
-            }, logger);
+            });
 
             pipelineResult = response;
         }
         catch (Exception ex)
         {
-            pipelineResult = new PipelineResult
-            {
-                Success = false,
-                FinalVerdict = $"Error during analysis: {ex.Message}",
-                FinalCode = prompt
-            };
+            pipelineResult = new PipelineResult(false, prompt, $"Error during analysis: {ex.Message}", 0);
         }
         finally
         {

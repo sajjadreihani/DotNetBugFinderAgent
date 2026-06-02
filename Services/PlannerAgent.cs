@@ -8,7 +8,17 @@ public class PlannerAgent(IOllamaAgent agent) : IPlannerAgent
     private readonly string instruction =
         @"You are a software engineering planner. Given a code review and an optional user request, 
         produce a clear, ordered action plan. Each step should have a description and an expected outcome. 
-        Be specific about what code changes need to happen. Your plan will be executed by a debugger agent.";
+        Be specific about what code changes need to happen. Your plan will be executed by a debugger agent.
+The Result Should Follow below JSON:
+{
+ 'Goal': 'string',
+ 'Steps' : [{
+        'Order': 'int',
+        'Description': 'string',
+        'ExpectedOutcome': 'string'
+}]
+}
+";
 
     public async Task<AiPlanResponse> CreatePlan(string code, AiReviewResponse review, string? userRequest, string model = "deepseek-coder-v2:16b")
     {
